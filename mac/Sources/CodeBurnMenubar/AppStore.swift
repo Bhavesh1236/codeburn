@@ -51,6 +51,7 @@ final class AppStore {
     private var cache: [PayloadCacheKey: CachedPayload] = [:]
     private var cacheDate: String = ""
     private var switchTask: Task<Void, Never>?
+    private var payloadRefreshGeneration: UInt64 = 0
     /// Tracks the last successful fetch timestamp per key for stuck-loading
     /// diagnostics. NOT used for cache-freshness logic — `CachedPayload.fetchedAt`
     /// is authoritative there. This map persists across cache wipes (day
@@ -85,6 +86,20 @@ final class AppStore {
 
     var hasCachedData: Bool {
         cache[currentKey] != nil
+    }
+
+    var hasStaleLoading: Bool {
+        let now = Date()
+        return loadingStartedAtByKey.values.contains {
+            now.timeIntervalSince($0) > loadingWatchdogSeconds
+        }
+    }
+
+    var needsInteractivePayloadRefresh: Bool {
+        let todayKey = PayloadCacheKey(period: .today, provider: .all)
+        return cache[currentKey]?.isFresh != true ||
+            cache[todayKey]?.isFresh != true ||
+            hasStaleLoading
     }
 
     /// True if any cached payload reports at least one provider. Used to keep the
@@ -135,6 +150,7 @@ final class AppStore {
     private var inFlightKeys: Set<PayloadCacheKey> = []
 
     func resetLoadingState() {
+        payloadRefreshGeneration &+= 1
         loadingCountsByKey.removeAll()
         loadingStartedAtByKey.removeAll()
         inFlightKeys.removeAll()
@@ -161,6 +177,7 @@ final class AppStore {
         }
         guard !staleEntries.isEmpty else { return false }
 
+        payloadRefreshGeneration &+= 1
         for (key, started) in staleEntries {
             NSLog("CodeBurn: loading stuck for %ds on %@/%@ — auto-clearing",
                   Int(now.timeIntervalSince(started)), key.period.rawValue, key.provider.rawValue)
@@ -209,6 +226,7 @@ final class AppStore {
         invalidateStaleDayCache()
         let key = currentKey
         let cacheDateAtStart = cacheDate
+        let generationAtStart = payloadRefreshGeneration
         if !force, cache[key]?.isFresh == true { return }
         if !force, inFlightKeys.contains(key) { return }
         inFlightKeys.insert(key)
@@ -237,6 +255,10 @@ final class AppStore {
         }
         do {
             let fresh = try await DataClient.fetch(period: key.period, provider: key.provider, includeOptimize: includeOptimize)
+            if generationAtStart != payloadRefreshGeneration {
+                NSLog("CodeBurn: dropping fetch result for \(key.period.rawValue)/\(key.provider.rawValue) — refresh pipeline reset mid-fetch")
+                return
+            }
             if Task.isCancelled {
                 // Distinguish cancellation (user switched tabs mid-fetch) from
                 // the silent-no-result path. Without this log, a cancelled
@@ -263,6 +285,7 @@ final class AppStore {
                 do {
                     let fallback = try await DataClient.fetch(period: key.period, provider: key.provider, includeOptimize: false)
                     guard !Task.isCancelled else { return }
+                    if generationAtStart != payloadRefreshGeneration { return }
                     if cacheDate != cacheDateAtStart { return }
                     cache[key] = CachedPayload(payload: fallback, fetchedAt: Date())
                     lastSuccessByKey[key] = Date()
@@ -288,8 +311,13 @@ final class AppStore {
     func refreshQuietly(period: Period) async {
         invalidateStaleDayCache()
         let cacheDateAtStart = cacheDate
+        let generationAtStart = payloadRefreshGeneration
         do {
             let fresh = try await DataClient.fetch(period: period, provider: .all, includeOptimize: false)
+            if generationAtStart != payloadRefreshGeneration {
+                NSLog("CodeBurn: dropping quiet fetch result for \(period.rawValue) — refresh pipeline reset mid-fetch")
+                return
+            }
             // Same day-rollover guard as refresh(): drop yesterday's payload if
             // the calendar rolled over during the fetch.
             if cacheDate != cacheDateAtStart { return }
