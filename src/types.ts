@@ -25,6 +25,10 @@ export type ApiUsage = {
   input_tokens: number
   output_tokens: number
   cache_creation_input_tokens?: number
+  cache_creation?: {
+    ephemeral_5m_input_tokens?: number
+    ephemeral_1h_input_tokens?: number
+  }
   cache_read_input_tokens?: number
   server_tool_use?: {
     web_search_requests?: number
@@ -72,12 +76,14 @@ export type ParsedApiCall = {
   costUSD: number
   tools: string[]
   mcpTools: string[]
+  skills: string[]
   hasAgentSpawn: boolean
   hasPlanMode: boolean
   speed: 'standard' | 'fast'
   timestamp: string
   bashCommands: string[]
   deduplicationKey: string
+  cacheCreationOneHourTokens?: number
 }
 
 export type TaskCategory =
@@ -97,6 +103,7 @@ export type TaskCategory =
 
 export type ClassifiedTurn = ParsedTurn & {
   category: TaskCategory
+  subCategory?: string
   retries: number
   hasEdits: boolean
 }
@@ -118,6 +125,13 @@ export type SessionSummary = {
   mcpBreakdown: Record<string, { calls: number }>
   bashBreakdown: Record<string, { calls: number }>
   categoryBreakdown: Record<TaskCategory, { turns: number; costUSD: number; retries: number; editTurns: number; oneShotTurns: number }>
+  skillBreakdown: Record<string, { turns: number; costUSD: number; editTurns: number; oneShotTurns: number }>
+  // Observed MCP tools available in this session, captured from
+  // `attachment.deferred_tools_delta.addedNames` entries. Union across all
+  // turns. Each name is a fully-qualified `mcp__<server>__<tool>` identifier.
+  // Built-in tools (Bash, Edit, etc.) are filtered out. Provider-agnostic field;
+  // currently populated only by the Claude parser.
+  mcpInventory?: string[]
 }
 
 export type ProjectSummary = {

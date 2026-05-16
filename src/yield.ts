@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { parseAllSessions } from './parser.js'
 import type { DateRange, SessionSummary } from './types.js'
 
@@ -20,27 +20,28 @@ export type YieldSummary = {
   details: SessionYield[]
 }
 
-function runGit(cmd: string, cwd: string): string | null {
+const SAFE_REF_PATTERN = /^[A-Za-z0-9._/\-]+$/
+
+function runGit(args: string[], cwd: string): string | null {
   try {
-    return execSync(cmd, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+    return execFileSync('git', args, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim()
   } catch {
     return null
   }
 }
 
 function isGitRepo(dir: string): boolean {
-  return runGit('git rev-parse --is-inside-work-tree', dir) === 'true'
+  return runGit(['rev-parse', '--is-inside-work-tree'], dir) === 'true'
 }
 
 function getMainBranch(cwd: string): string {
-  // Try to get default branch from remote
-  const result = runGit('git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null', cwd)
+  const result = runGit(['symbolic-ref', 'refs/remotes/origin/HEAD'], cwd)
   if (result) {
-    return result.replace('refs/remotes/origin/', '')
+    const branch = result.replace('refs/remotes/origin/', '')
+    if (SAFE_REF_PATTERN.test(branch)) return branch
   }
 
-  // Fallback: check common names
-  const branches = runGit('git branch -a', cwd) ?? ''
+  const branches = runGit(['branch', '-a'], cwd) ?? ''
   if (branches.includes('main')) return 'main'
   if (branches.includes('master')) return 'master'
   return 'main'
@@ -49,8 +50,35 @@ function getMainBranch(cwd: string): string {
 type CommitInfo = {
   sha: string
   timestamp: Date
-  isRevert: boolean
   inMain: boolean
+  /** Set when a LATER commit's body says "This reverts commit <sha>" — i.e. the work in this commit was reverted out of main. */
+  wasReverted: boolean
+}
+
+/**
+ * Find SHAs that were the target of a `git revert` ANYWHERE in the repo's
+ * history (not just the time window). The standard `git revert` body
+ * format is "This reverts commit <SHA>." which we grep out.
+ *
+ * The previous implementation flagged a commit as `isRevert` based on the
+ * substring "revert" appearing in its OWN subject. Two bugs there:
+ * 1. Subjects like "Add revert button" matched.
+ * 2. The session that PERFORMED the revert was tagged "reverted", not the
+ *    session whose work was being reverted — so the original session always
+ *    looked productive even after its work was thrown away.
+ */
+function getRevertedShas(cwd: string): Set<string> {
+  const bodies = runGit(
+    ['log', '--all', '--grep=^This reverts commit', '--format=%B%x1e'],
+    cwd,
+  ) ?? ''
+  const set = new Set<string>()
+  const re = /This reverts commit ([0-9a-f]{7,40})/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(bodies)) !== null) {
+    set.add(m[1].toLowerCase())
+  }
+  return set
 }
 
 function getCommitsInRange(cwd: string, since: Date, until: Date, mainBranch: string): CommitInfo[] {
@@ -58,23 +86,30 @@ function getCommitsInRange(cwd: string, since: Date, until: Date, mainBranch: st
   const untilStr = until.toISOString()
 
   const log = runGit(
-    `git log --all --since="${sinceStr}" --until="${untilStr}" --format="%H|%aI|%s"`,
+    ['log', '--all', `--since=${sinceStr}`, `--until=${untilStr}`, '--format=%H|%aI|%s'],
     cwd
   )
 
   if (!log) return []
 
   const mainCommits = new Set(
-    (runGit(`git log ${mainBranch} --format="%H"`, cwd) ?? '').split('\n').filter(Boolean)
+    (runGit(['log', mainBranch, '--format=%H'], cwd) ?? '').split('\n').filter(Boolean)
   )
+  const revertedShas = getRevertedShas(cwd)
 
   return log.split('\n').filter(Boolean).map(line => {
-    const [sha, timestamp, subject] = line.split('|')
+    const [sha] = line.split('|')
+    const timestamp = line.split('|')[1] ?? ''
     return {
       sha,
       timestamp: new Date(timestamp),
-      isRevert: subject.toLowerCase().includes('revert'),
       inMain: mainCommits.has(sha),
+      // wasReverted: matches when ANY later commit's body says
+      // "This reverts commit <sha>". Compare against the full SHA AND its
+      // 7-char short prefix to be safe; git revert sometimes records the
+      // short form.
+      wasReverted: revertedShas.has(sha.toLowerCase()) ||
+                   revertedShas.has(sha.toLowerCase().slice(0, 7)),
     }
   })
 }
@@ -100,7 +135,10 @@ function categorizeSession(
   }
 
   const inMainCount = relevantCommits.filter(c => c.inMain).length
-  const revertedCount = relevantCommits.filter(c => c.isRevert && c.inMain).length
+  // A session is "reverted" when at least half of its in-main commits were
+  // later reverted out (revert detected via "This reverts commit <sha>"
+  // anywhere later in history, not in the same time window).
+  const revertedCount = relevantCommits.filter(c => c.inMain && c.wasReverted).length
 
   if (revertedCount > 0 && revertedCount >= inMainCount / 2) {
     return { category: 'reverted', commitCount: relevantCommits.length }

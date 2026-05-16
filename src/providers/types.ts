@@ -19,6 +19,7 @@ export type ParsedProviderCall = {
   reasoningTokens: number
   webSearchRequests: number
   costUSD: number
+  costIsEstimated?: boolean
   tools: string[]
   bashCommands: string[]
   timestamp: string
@@ -26,6 +27,8 @@ export type ParsedProviderCall = {
   deduplicationKey: string
   userMessage: string
   sessionId: string
+  project?: string
+  projectPath?: string
 }
 
 export type Provider = {

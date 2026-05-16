@@ -3,7 +3,7 @@ import { providers, getAllProviders } from '../src/providers/index.js'
 
 describe('provider registry', () => {
   it('has core providers registered synchronously', () => {
-    expect(providers.map(p => p.name)).toEqual(['claude', 'codex', 'codebuff', 'copilot', 'droid', 'gemini', 'kilo-code', 'kiro', 'openclaw', 'pi', 'omp', 'qwen', 'roo-code'])
+    expect(providers.map(p => p.name)).toEqual(['claude', 'cline', 'codebuff', 'codex', 'copilot', 'droid', 'gemini', 'ibm-bob', 'kilo-code', 'kiro', 'kimi', 'mistral-vibe', 'openclaw', 'pi', 'omp', 'qwen', 'roo-code'])
   })
 
   it('codebuff tool display names normalize codebuff-native names to canonical set', () => {
@@ -69,12 +69,21 @@ describe('provider registry', () => {
     expect(codex.modelDisplayName('gpt-5.4')).toBe('GPT-5.4')
     expect(codex.modelDisplayName('gpt-5.4-mini')).toBe('GPT-5.4 Mini')
     expect(codex.modelDisplayName('gpt-5.3-codex')).toBe('GPT-5.3 Codex')
+    expect(codex.modelDisplayName('gpt-5.5')).toBe('GPT-5.5')
   })
 
   it('claude model display names are human-readable', () => {
     const claude = providers.find(p => p.name === 'claude')!
     expect(claude.modelDisplayName('claude-opus-4-6-20260205')).toBe('Opus 4.6')
     expect(claude.modelDisplayName('claude-sonnet-4-6')).toBe('Sonnet 4.6')
+  })
+
+  it('kimi model and tool display names are normalized', () => {
+    const kimi = providers.find(p => p.name === 'kimi')!
+    expect(kimi.modelDisplayName('kimi-auto')).toBe('Kimi (auto)')
+    expect(kimi.modelDisplayName('kimi-k2-thinking-turbo')).toBe('Kimi K2 Thinking Turbo')
+    expect(kimi.toolDisplayName('Shell')).toBe('Bash')
+    expect(kimi.toolDisplayName('WriteFile')).toBe('Write')
   })
 
   it('cursor model display names handle auto mode', async () => {

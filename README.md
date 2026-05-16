@@ -13,7 +13,7 @@
     <a href="https://github.com/sponsors/iamtoruk"><img src="https://img.shields.io/badge/sponsor-♥-ea4aaa?logo=github" alt="Sponsor" /></a>                                                  
   </p> 
 
-CodeBurn tracks token usage, cost, and performance across **16 AI coding tools**. It breaks down spending by task type, model, tool, project, and provider so you can see exactly where your budget goes.
+CodeBurn tracks token usage, cost, and performance across **19 AI coding tools**. It breaks down spending by task type, model, tool, project, and provider so you can see exactly where your budget goes.
 
 Everything runs locally. No wrapper, no proxy, no API keys. CodeBurn reads session data directly from disk and prices every call using [LiteLLM](https://github.com/BerriAI/litellm).
 
@@ -48,11 +48,19 @@ Everything runs locally. No wrapper, no proxy, no API keys. CodeBurn reads sessi
 npm install -g codeburn
 ```
 
+Or with Homebrew:
+
+```bash
+brew tap getagentseal/codeburn
+brew install codeburn
+```
+
 Or run directly without installing:
 
 ```bash
 npx codeburn
 bunx codeburn
+dx codeburn
 ```
 
 ## Usage
@@ -75,32 +83,47 @@ codeburn optimize -p week       # scope the scan to last 7 days
 codeburn compare                # side-by-side model comparison
 codeburn yield                  # track productive vs reverted/abandoned spend
 codeburn yield -p 30days        # yield analysis for last 30 days
+codeburn models                 # per-model token + cost table (last 30 days)
+codeburn models --by-task       # explode each model into per-task-type rows
+codeburn models --top 10        # only the top 10 by cost
+codeburn models --format markdown      # paste-friendly markdown table
+codeburn models --task feature         # filter to feature-development work
+codeburn models --provider claude      # filter to one provider
 ```
 
-Arrow keys switch between Today, 7 Days, 30 Days, Month, and All Time. Press `q` to quit, `1` `2` `3` `4` `5` as shortcuts, `c` to open model comparison, `o` to open optimize. The dashboard auto-refreshes every 30 seconds by default (`--refresh 0` to disable). It also shows average cost per session and the five most expensive sessions across all projects.
+Arrow keys switch between Today, 7 Days, 30 Days, Month, and 6 Months (use `--from` / `--to` for an exact historical window). Press `q` to quit, `1` `2` `3` `4` `5` as shortcuts, `c` to open model comparison, `o` to open optimize. The dashboard auto-refreshes every 30 seconds by default (`--refresh 0` to disable). It also shows average cost per session and the five most expensive sessions across all projects.
 
 ## Supported Providers
 
-| Provider | Data Location | Supported |
-|----------|--------------|-----------|
-| Claude Code | `~/.claude/projects/` | Yes |
-| Claude Desktop | `~/Library/Application Support/Claude/local-agent-mode-sessions/` | Yes |
-| Codex (OpenAI) | `~/.codex/sessions/` | Yes |
-| Cursor | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` | Yes |
-| cursor-agent | `~/.cursor/projects/` | Yes |
-| Gemini CLI | `~/.gemini/tmp/<project>/chats/` | Yes |
-| GitHub Copilot | `~/.copilot/session-state/` + VS Code `workspaceStorage/` | Yes |
-| Kiro | `~/Library/Application Support/Kiro/User/globalStorage/kiro.kiroagent/` | Yes |
-| OpenCode | `~/.local/share/opencode/` (SQLite) | Yes |
-| OpenClaw | `~/.openclaw/agents/` (+ legacy `.clawdbot`, `.moltbot`, `.moldbot`) | Yes |
-| Pi | `~/.pi/agent/sessions/` | Yes |
-| OMP (Oh My Pi) | `~/.omp/agent/sessions/` | Yes |
-| Droid | `~/.factory/projects/` | Yes |
-| Roo Code | VS Code `globalStorage/rooveterinaryinc.roo-cline/tasks/` | Yes |
-| KiloCode | VS Code `globalStorage/kilocode.kilo-code/tasks/` | Yes |
-| Qwen | `~/.qwen/projects/<project>/chats/` | Yes |
+| | Provider | Supported | Doc |
+|---|----------|-----------|-----|
+| <img src="assets/providers/claude.jpg" width="28" /> | Claude Code | Yes | [claude.md](docs/providers/claude.md) |
+| <img src="assets/providers/claude.jpg" width="28" /> | Claude Desktop | Yes | [claude.md](docs/providers/claude.md) |
+| <img src="assets/providers/cline.svg" width="28" /> | Cline | Yes | [cline.md](docs/providers/cline.md) |
+| <img src="assets/providers/codex.png" width="28" /> | Codex (OpenAI) | Yes | [codex.md](docs/providers/codex.md) |
+| <img src="assets/providers/cursor.jpg" width="28" /> | Cursor | Yes | [cursor.md](docs/providers/cursor.md) |
+| <img src="assets/providers/cursor-agent.jpg" width="28" /> | cursor-agent | Yes | [cursor-agent.md](docs/providers/cursor-agent.md) |
+| <img src="assets/providers/gemini.png" width="28" /> | Gemini CLI | Yes | [gemini.md](docs/providers/gemini.md) |
+| <img src="assets/providers/mistral-vibe.svg" width="28" /> | Mistral Vibe | Yes | [mistral-vibe.md](docs/providers/mistral-vibe.md) |
+| <img src="assets/providers/copilot.jpg" width="28" /> | GitHub Copilot | Yes | [copilot.md](docs/providers/copilot.md) |
+| <img src="assets/providers/ibm-bob.svg" width="28" /> | IBM Bob | Yes | [ibm-bob.md](docs/providers/ibm-bob.md) |
+| <img src="assets/providers/kiro.png" width="28" /> | Kiro | Yes | [kiro.md](docs/providers/kiro.md) |
+| <img src="assets/providers/opencode.png" width="28" /> | OpenCode | Yes | [opencode.md](docs/providers/opencode.md) |
+| <img src="assets/providers/openclaw.jpg" width="28" /> | OpenClaw | Yes | [openclaw.md](docs/providers/openclaw.md) |
+| <img src="assets/providers/pi.png" width="28" /> | Pi | Yes | [pi.md](docs/providers/pi.md) |
+| <img src="assets/providers/omp.svg" width="28" /> | OMP (Oh My Pi) | Yes | [omp.md](docs/providers/omp.md) |
+| <img src="assets/providers/droid.png" width="28" /> | Droid | Yes | [droid.md](docs/providers/droid.md) |
+| <img src="assets/providers/roo-code.png" width="28" /> | Roo Code | Yes | [roo-code.md](docs/providers/roo-code.md) |
+| <img src="assets/providers/kilo-code.png" width="28" /> | KiloCode | Yes | [kilo-code.md](docs/providers/kilo-code.md) |
+| <img src="assets/providers/qwen.png" width="28" /> | Qwen | Yes | [qwen.md](docs/providers/qwen.md) |
+| <img src="assets/providers/kimi.svg" width="28" /> | Kimi Code CLI | Yes | [kimi.md](docs/providers/kimi.md) |
+| <img src="assets/providers/goose.png" width="28" /> | Goose | Yes | [goose.md](docs/providers/goose.md) |
+| <img src="assets/providers/antigravity.png" width="28" /> | Antigravity | Yes | [antigravity.md](docs/providers/antigravity.md) |
+| <img src="assets/providers/crush.png" width="28" /> | Crush | Yes | [crush.md](docs/providers/crush.md) |
 
-Paths shown are for macOS. Linux and Windows equivalents are detected automatically. If a path has changed or is wrong, please [open an issue](https://github.com/getagentseal/codeburn/issues).
+Each provider doc lists the exact data location, storage format, and known quirks. Linux and Windows paths are detected automatically. If a path has changed or is wrong, please [open an issue](https://github.com/getagentseal/codeburn/issues).
+
+Provider logos are trademarks of their respective owners. The icon set was sourced from [tokscale](https://github.com/junhoyeo/tokscale) (MIT), official vendor assets, and simple provider identifiers, used under nominative fair use for the purpose of identifying supported tools.
 
 CodeBurn auto-detects which AI coding tools you use. If multiple providers have session data on disk, press `p` in the dashboard to toggle between them.
 
@@ -112,6 +135,8 @@ The `--provider` flag filters any command to a single provider: `codeburn report
 
 **Gemini CLI** stores sessions as single JSON files. Each session embeds real token counts (input, output, cached, thoughts) per message, so no estimation is needed. Gemini reports input tokens inclusive of cached; CodeBurn subtracts cached from input before pricing to avoid double charging.
 
+**Mistral Vibe** stores sessions as folders under `~/.vibe/logs/session/` (or `$VIBE_HOME/logs/session/`). CodeBurn reads cumulative prompt/completion totals and model pricing from `meta.json`, then reads `messages.jsonl` for the first user prompt and assistant tool calls. Subagent sessions under `agents/` are counted as separate Vibe sessions.
+
 **Kiro** stores conversations as `.chat` JSON files. Token counts are estimated from content length. The underlying model is not exposed, so sessions are labeled `kiro-auto` and costed at Sonnet rates.
 
 **GitHub Copilot** reads from both `~/.copilot/session-state/` (legacy CLI) and VS Code's `workspaceStorage/*/GitHub.copilot-chat/transcripts/`. The VS Code format has no explicit token counts; tokens are estimated from content length and the model is inferred from tool call ID prefixes.
@@ -119,6 +144,8 @@ The `--provider` flag filters any command to a single provider: `codeburn report
 **OpenClaw** reads JSONL agent logs from `~/.openclaw/agents/` and also checks legacy paths (`.clawdbot`, `.moltbot`, `.moldbot`).
 
 **Roo Code and KiloCode** are Cline-family VS Code extensions. CodeBurn reads `ui_messages.json` from each task directory and extracts token usage from `api_req_started` entries.
+
+**Claude with multiple config directories.** If you run Claude Code under more than one account or profile (e.g. `~/.claude-work` and `~/.claude-personal`), point `CLAUDE_CONFIG_DIRS` at all of them at once: `CLAUDE_CONFIG_DIRS=~/.claude-work:~/.claude-personal codeburn`. Sessions across every directory are merged into one row per project so the totals reflect all your Claude usage in one place. Use `:` on POSIX, `;` on Windows. Missing or unreadable directories in the list are skipped.
 
 Adding a new provider is a single file. See `src/providers/codex.ts` for an example.
 
@@ -178,6 +205,9 @@ Scans your sessions and your `~/.claude/` setup for waste patterns:
 - Ghost agents, skills, and slash commands defined in `~/.claude/` but never invoked
 - Bloated `CLAUDE.md` files (with `@-import` expansion counted)
 - Cache creation overhead and junk directory reads
+- Context-heavy sessions where effective input/cache tokens swamp output
+- Possibly low-worth expensive sessions with no edit turns or repeated retries
+  when no `git`/`gh` delivery command is observed
 
 Each finding shows the estimated token and dollar savings plus a ready-to-paste fix: a `CLAUDE.md` line, an environment variable, or a `mv` command to archive unused items. Findings are ranked by urgency (impact weighted against observed waste) and rolled up into an A to F setup health grade. Repeat runs classify each finding as new, improving, or resolved against a 48-hour recent window.
 
@@ -186,7 +216,7 @@ You can also open it inline from the dashboard: press `o` when a finding count a
 ### Compare
 
 ```bash
-codeburn compare                        # interactive model picker (default: all time)
+codeburn compare                        # interactive model picker (default: last 6 months)
 codeburn compare -p week                # last 7 days
 codeburn compare -p today               # today only
 codeburn compare --provider claude      # Claude Code sessions only
@@ -354,60 +384,39 @@ These are starting points, not verdicts. A 60% cache hit on a single experimenta
 
 **Gemini CLI** stores sessions as single JSON files at `~/.gemini/tmp/<project>/chats/session-*.json`. Each session embeds real token counts (input, output, cached, thoughts) per message. Gemini reports input tokens inclusive of cached; CodeBurn subtracts cached from input before pricing to avoid double charging.
 
+**Mistral Vibe** stores session folders at `~/.vibe/logs/session/`. Each folder contains `meta.json` with cumulative prompt/completion token totals, model pricing, timestamps, and working directory, plus `messages.jsonl` with user prompts and assistant tool calls. CodeBurn emits one record per Vibe session because the source data is cumulative, not per assistant turn.
+
 **OpenClaw** stores agent sessions as JSONL at `~/.openclaw/agents/*.jsonl`. Also checks legacy paths `.clawdbot`, `.moltbot`, `.moldbot`. Token usage comes from assistant message `usage` blocks; model from `modelId` or `message.model` fields.
 
-**Roo Code / KiloCode** are Cline-family VS Code extensions. CodeBurn reads `ui_messages.json` from each task directory in VS Code's `globalStorage`, filtering `type: "say"` entries with `say: "api_req_started"` to extract token counts.
+**Cline / Roo Code / KiloCode** are Cline-family coding agents. CodeBurn reads `ui_messages.json` from each task directory, filtering `type: "say"` entries with `say: "api_req_started"` to extract token counts. Cline scans both VS Code's `globalStorage/saoudrizwan.claude-dev` and `~/.cline/data`.
 
-CodeBurn deduplicates messages (by API message ID for Claude, by cumulative token cross-check for Codex, by conversation/timestamp for Cursor, by session ID for Gemini, by session+message ID for OpenCode, by responseId for Pi/OMP, by chat folder + message ID for Codebuff), filters by date range per entry, and classifies each turn.
+**IBM Bob** stores IDE task history in `User/globalStorage/ibm.bob-code/tasks/<task-id>/` under the IBM Bob application data directory. CodeBurn reads `ui_messages.json` for API request token/cost records and `api_conversation_history.json` for the selected model, with support for both GA (`IBM Bob`) and preview (`Bob-IDE`) app data folders.
+
+**Kimi Code CLI** stores session logs under `$KIMI_SHARE_DIR/sessions/<workdir-hash>/<session-id>/` or `~/.kimi/sessions/<workdir-hash>/<session-id>/`. CodeBurn reads `wire.jsonl` `StatusUpdate.token_usage` records, maps `input_other`, `input_cache_read`, `input_cache_creation`, and `output` into the standard token columns, and includes subagent sessions under each session's `subagents/` folder.
+
+CodeBurn deduplicates messages (by API message ID for Claude, by cumulative token cross-check for Codex, by conversation/timestamp for Cursor, by session ID for Gemini, by session+message ID for OpenCode, by responseId for Pi/OMP, by chat folder + message ID for Codebuff, by session+message ID for Kimi), filters by date range per entry, and classifies each turn.
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `CLAUDE_CONFIG_DIR` | Override Claude Code data directory (default: `~/.claude`) |
+| `CLAUDE_CONFIG_DIRS` | OS-delimited list of Claude data directories to scan together (e.g. `~/.claude-work:~/.claude-personal`). Sessions merge into one row per project. Overrides `CLAUDE_CONFIG_DIR` when set. |
 | `CODEX_HOME` | Override Codex data directory (default: `~/.codex`) |
 | `CODEBUFF_DATA_DIR` | Override Codebuff data directory (default: `~/.config/manicode`) |
 | `FACTORY_DIR` | Override Droid data directory (default: `~/.factory`) |
+| `KIMI_SHARE_DIR` | Override Kimi Code CLI share directory (default: `~/.kimi`) |
+| `KIMI_MODEL_NAME` | Override Kimi model name when Kimi sessions do not record the model |
 | `QWEN_DATA_DIR` | Override Qwen data directory (default: `~/.qwen/projects`) |
+| `VIBE_HOME` | Override Mistral Vibe home directory (default: `~/.vibe`) |
 
-## Project Structure
+## Sponsoring CodeBurn
 
-```
-src/
-  cli.ts            Commander.js entry point
-  dashboard.tsx     Ink TUI (React for terminals)
-  parser.ts         JSONL reader, dedup, date filter, provider orchestration
-  models.ts         LiteLLM pricing, cost calculation
-  classifier.ts     13-category task classifier
-  compare-stats.ts  Model comparison engine
-  daily-cache.ts    Persistent daily cache with migration
-  day-aggregator.ts Daily aggregation from session data
-  types.ts          Type definitions
-  format.ts         Text rendering (status bar)
-  menubar-json.ts   Payload builder for the macOS menubar app
-  export.ts         CSV/JSON multi-period export
-  config.ts         Config file management (~/.config/codeburn/)
-  currency.ts       Currency conversion, exchange rates
-  sqlite.ts         SQLite adapter (lazy-loads better-sqlite3)
-  optimize.ts       Waste pattern detection engine
-  providers/
-    types.ts        Provider interface definitions
-    index.ts        Provider registry
-    claude.ts       Claude Code session discovery
-    codex.ts        Codex session discovery and JSONL parsing
-    copilot.ts      GitHub Copilot session parsing
-    cursor.ts       Cursor SQLite parsing, language extraction
-    cursor-agent.ts cursor-agent CLI session parsing
-    droid.ts        Droid session discovery
-    gemini.ts       Gemini CLI session JSON parsing
-    kilo-code.ts    KiloCode VS Code extension parsing
-    kiro.ts         Kiro .chat JSON session parsing
-    openclaw.ts     OpenClaw agent JSONL parsing
-    opencode.ts     OpenCode SQLite session parsing
-    pi.ts           Pi/OMP agent JSONL session parsing
-    qwen.ts         Qwen CLI JSONL session parsing
-    roo-code.ts     Roo Code VS Code extension parsing
-```
+If CodeBurn is useful to you or your team, consider sponsoring development.
+
+Sponsorship helps support the time spent building and maintaining the project, the providers we add, and the bug-fix turnaround on issues like Cursor schema drift and Claude config-dir support.
+
+[Sponsor on GitHub](https://github.com/sponsors/iamtoruk)
 
 ## Star History
 

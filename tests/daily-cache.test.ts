@@ -77,7 +77,13 @@ describe('loadDailyCache', () => {
     expect(existsSync(join(TMP_CACHE_ROOT, 'daily-cache.json.v1.bak'))).toBe(true)
   })
 
-  it('migrates an older supported version by filling missing fields', async () => {
+  it('discards a v2 cache and starts fresh (provider rollups would be stale)', async () => {
+    // MIN_SUPPORTED_VERSION was raised to DAILY_CACHE_VERSION because the
+    // migration path cannot recompute the providers / categories / models
+    // rollups from session data (the cache does not retain raw sessions),
+    // so a migrated old cache would carry forward stale provider totals
+    // for the full retention window. Older caches now get discarded and
+    // recomputed from scratch on next run.
     const saved = {
       version: 2,
       lastComputedDate: '2026-04-10',
@@ -92,14 +98,40 @@ describe('loadDailyCache', () => {
     await writeFile(join(TMP_CACHE_ROOT, 'daily-cache.json'), JSON.stringify(saved), 'utf-8')
     const cache = await loadDailyCache()
     expect(cache.version).toBe(DAILY_CACHE_VERSION)
-    expect(cache.days).toHaveLength(1)
-    expect(cache.days[0].date).toBe('2026-04-10')
-    expect(cache.days[0].cost).toBe(10)
-    expect(cache.days[0].editTurns).toBe(0)
-    expect(cache.days[0].oneShotTurns).toBe(0)
-    expect(cache.days[0].categories).toEqual({})
-    expect(cache.days[0].providers).toEqual({})
-    expect(cache.days[0].models['claude-opus-4-6'].calls).toBe(5)
+    expect(cache.days).toEqual([])
+    expect(cache.lastComputedDate).toBeNull()
+    // Old cache is renamed to .v2.bak rather than deleted.
+    expect(existsSync(join(TMP_CACHE_ROOT, 'daily-cache.json.v2.bak'))).toBe(true)
+  })
+
+  it('discards a v5 cache because cached Claude costs predate 1-hour cache pricing', async () => {
+    const saved = {
+      version: 5,
+      lastComputedDate: '2026-05-01',
+      days: [{
+        date: '2026-05-01',
+        cost: 0.37575,
+        calls: 1,
+        sessions: 1,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 60_120,
+        editTurns: 0,
+        oneShotTurns: 0,
+        models: { 'Opus 4.7': { calls: 1, cost: 0.37575, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 60_120 } },
+        categories: {},
+        providers: { claude: { calls: 1, cost: 0.37575 } },
+      }],
+    }
+    const { writeFile, mkdir } = await import('fs/promises')
+    await mkdir(TMP_CACHE_ROOT, { recursive: true })
+    await writeFile(join(TMP_CACHE_ROOT, 'daily-cache.json'), JSON.stringify(saved), 'utf-8')
+    const cache = await loadDailyCache()
+    expect(cache.version).toBe(DAILY_CACHE_VERSION)
+    expect(cache.days).toEqual([])
+    expect(cache.lastComputedDate).toBeNull()
+    expect(existsSync(join(TMP_CACHE_ROOT, 'daily-cache.json.v5.bak'))).toBe(true)
   })
 
   it('round-trips a valid cache through save and load', async () => {
@@ -162,6 +194,34 @@ describe('addNewDays', () => {
     }
     const updated = addNewDays(base, [emptyDay('2026-04-05', 3)], '2026-04-05')
     expect(updated.lastComputedDate).toBe('2026-04-10')
+  })
+
+  it('skips prune when newestDate is malformed (does not silently drop all days)', () => {
+    // Regression guard: a corrupt newestDate string used to produce a NaN
+    // cutoff, which made `d.date >= "Invalid Date"` always false and
+    // wiped every cached day on the next merge. The guard now leaves
+    // the entries untouched so the next valid run can prune normally.
+    const base: DailyCache = {
+      version: DAILY_CACHE_VERSION,
+      lastComputedDate: '2026-04-10',
+      days: [emptyDay('2026-04-08', 1), emptyDay('2026-04-09', 2), emptyDay('2026-04-10', 3)],
+    }
+    const updated = addNewDays(base, [], 'not-a-date')
+    expect(updated.days.map(d => d.date)).toEqual(['2026-04-08', '2026-04-09', '2026-04-10'])
+  })
+
+  it('still prunes when newestDate is valid', () => {
+    const old = '2020-01-01'
+    const recent = '2026-04-10'
+    const base: DailyCache = {
+      version: DAILY_CACHE_VERSION,
+      lastComputedDate: recent,
+      days: [emptyDay(old, 1), emptyDay(recent, 2)],
+    }
+    const updated = addNewDays(base, [], recent)
+    // 730-day retention from 2026-04-10 → cutoff ~2024-04-11; 2020-01-01 must be gone.
+    expect(updated.days.find(d => d.date === old)).toBeUndefined()
+    expect(updated.days.find(d => d.date === recent)).toBeDefined()
   })
 })
 

@@ -5,8 +5,19 @@ import { homedir } from 'os'
 import { join } from 'path'
 import type { DateRange, ProjectSummary } from './types.js'
 
-export const DAILY_CACHE_VERSION = 4
-const MIN_SUPPORTED_VERSION = 2
+// Bumped to 6 alongside the Claude 1-hour cache-write pricing fix: prior
+// daily entries priced all Claude cache writes at the 5-minute rate, so
+// cached historical cost/model/provider/category totals would remain
+// under-reported unless discarded and recomputed from raw sessions.
+export const DAILY_CACHE_VERSION = 6
+// MIN_SUPPORTED_VERSION bumped to 6 too. The migration path
+// (isMigratableCache + migrateDays) only fills in missing default fields;
+// it does NOT recompute the providers / categories / models rollups from
+// session data, because those raw sessions are not stored in the cache.
+// So a migrated v5 cache would carry forward stale pricing totals for
+// the full cache retention window. Setting the floor to 6 forces older
+// caches to be discarded and recomputed cleanly.
+const MIN_SUPPORTED_VERSION = 6
 const DAILY_CACHE_FILENAME = 'daily-cache.json'
 
 export type DailyEntry = {
@@ -133,10 +144,24 @@ export function addNewDays(cache: DailyCache, incoming: DailyEntry[], newestDate
     byDate.set(day.date, day)
   }
   const merged = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
+  // Prune entries older than the BACKFILL window so the cache file does not
+  // grow unbounded over years of daily use. The "all time" / 6-month period
+  // and the BACKFILL_DAYS bootstrap both fit comfortably inside this cap.
+  // Anchor the cap on the newestDate boundary so a stale or stuck clock
+  // can't accidentally evict everything. Skip the prune entirely if
+  // newestDate is malformed — an invalid Date would produce a NaN cutoff
+  // and `d.date >= "Invalid Date"` would silently drop every entry.
+  const cutoffDate = new Date(`${newestDate}T00:00:00Z`)
+  let pruned = merged
+  if (!isNaN(cutoffDate.getTime())) {
+    cutoffDate.setUTCDate(cutoffDate.getUTCDate() - DAILY_CACHE_RETENTION_DAYS)
+    const cutoff = toDateString(cutoffDate)
+    pruned = merged.filter(d => d.date >= cutoff)
+  }
   const nextLast = cache.lastComputedDate && cache.lastComputedDate > newestDate
     ? cache.lastComputedDate
     : newestDate
-  return { version: DAILY_CACHE_VERSION, lastComputedDate: nextLast, days: merged }
+  return { version: DAILY_CACHE_VERSION, lastComputedDate: nextLast, days: pruned }
 }
 
 export function getDaysInRange(cache: DailyCache, start: string, end: string): DailyEntry[] {
@@ -153,6 +178,10 @@ export function withDailyCacheLock<T>(fn: () => Promise<T>): Promise<T> {
 
 export const MS_PER_DAY = 24 * 60 * 60 * 1000
 export const BACKFILL_DAYS = 365
+// Keep 2 years of history so the longest UI-exposed period (6 months
+// today, with headroom for future longer windows) always reads from
+// cache while old entries get pruned.
+export const DAILY_CACHE_RETENTION_DAYS = 730
 
 export function toDateString(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -165,7 +194,7 @@ export async function ensureCacheHydrated(
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const yesterdayEnd = new Date(todayStart.getTime() - 1)
-  const yesterdayStr = toDateString(new Date(todayStart.getTime() - MS_PER_DAY))
+  const yesterdayStr = toDateString(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))
 
   return withDailyCacheLock(async () => {
     let c = await loadDailyCache()
@@ -183,7 +212,7 @@ export async function ensureCacheHydrated(
           parseInt(c.lastComputedDate.slice(5, 7)) - 1,
           parseInt(c.lastComputedDate.slice(8, 10)) + 1
         )
-      : new Date(todayStart.getTime() - BACKFILL_DAYS * MS_PER_DAY)
+      : new Date(now.getFullYear(), now.getMonth(), now.getDate() - BACKFILL_DAYS)
 
     if (gapStart.getTime() <= yesterdayEnd.getTime()) {
       const gapRange: DateRange = { start: gapStart, end: yesterdayEnd }
