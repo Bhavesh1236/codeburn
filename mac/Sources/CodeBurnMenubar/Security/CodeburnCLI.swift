@@ -13,6 +13,26 @@ enum CodeburnCLI {
     /// PATH additions for GUI-launched apps, which otherwise get a minimal PATH that misses
     /// Homebrew and npm global installs.
     private static let additionalPathEntries = ["/opt/homebrew/bin", "/usr/local/bin"]
+
+    private static let userNodePaths: [String] = {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        var paths: [String] = []
+        for dir in ["\(home)/.volta/bin", "\(home)/.npm-global/bin", "\(home)/.asdf/shims"] {
+            paths.append(dir)
+        }
+        let nvmDir = ProcessInfo.processInfo.environment["NVM_DIR"] ?? "\(home)/.nvm"
+        let versionsDir = "\(nvmDir)/versions/node"
+        if let entries = try? FileManager.default.contentsOfDirectory(atPath: versionsDir) {
+            for entry in entries.sorted().reversed() {
+                let bin = "\(versionsDir)/\(entry)/bin"
+                if FileManager.default.isExecutableFile(atPath: "\(bin)/codeburn") {
+                    paths.append(bin)
+                    break
+                }
+            }
+        }
+        return paths
+    }()
     private static let persistedPathFilename = "codeburn-cli-path.v1"
 
     /// Returns the argv that launches the CLI. Dev override via `CODEBURN_BIN` is honoured only
@@ -38,8 +58,8 @@ enum CodeburnCLI {
         if let persisted = persistedCLIPath(), isSafe(persisted), FileManager.default.isExecutableFile(atPath: persisted) {
             return [persisted]
         }
-        for candidate in additionalPathEntries.map({ "\($0)/codeburn" }) {
-            if FileManager.default.isExecutableFile(atPath: candidate) {
+        for candidate in (additionalPathEntries + userNodePaths).map({ "\($0)/codeburn" }) {
+            if isSafe(candidate), FileManager.default.isExecutableFile(atPath: candidate) {
                 return [candidate]
             }
         }
@@ -86,7 +106,7 @@ enum CodeburnCLI {
 
     private static func augmentedPath(_ existing: String) -> String {
         var parts = existing.split(separator: ":", omittingEmptySubsequences: true).map(String.init)
-        for extra in additionalPathEntries where !parts.contains(extra) {
+        for extra in additionalPathEntries + userNodePaths where !parts.contains(extra) {
             parts.append(extra)
         }
         return parts.joined(separator: ":")
