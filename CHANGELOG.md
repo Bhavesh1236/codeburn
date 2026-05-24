@@ -12,6 +12,9 @@
   using turn-level MCP/Skill call evidence and a shared-turn token estimate so
   one retry-heavy turn is not double-counted across multiple capabilities.
   Thanks @ozymandiashh. (#357)
+- **VSCodium storage discovery.** Copilot, Roo Code, and KiloCode now scan
+  VSCodium and VS Code Insiders storage roots in addition to VS Code, so
+  usage from VSCodium is included automatically. Thanks @ozymandiashh. (#233)
 - **Tooling breakdowns in dashboard and menubar.** New panels showing core
   tools, MCP servers, and shell command usage per session and across periods.
 - **File-aware retry detection with typed ToolCall.** One-shot rate now tracks
