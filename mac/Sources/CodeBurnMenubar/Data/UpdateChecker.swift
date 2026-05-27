@@ -5,6 +5,7 @@ private let releasesAPI = "https://api.github.com/repos/getagentseal/codeburn/re
 private let checkIntervalSeconds: TimeInterval = 2 * 24 * 60 * 60
 private let lastCheckKey = "UpdateChecker.lastCheckDate"
 private let cachedVersionKey = "UpdateChecker.latestVersion"
+private let cachedCliVersionKey = "UpdateChecker.latestCliVersion"
 private let updateTimeoutSeconds: UInt64 = 120
 private let maxUpdateStderrBytes = 64 * 1024
 
@@ -28,6 +29,8 @@ private final class LockedDataBuffer: @unchecked Sendable {
 @Observable
 final class UpdateChecker {
     var latestVersion: String?
+    var latestCliVersion: String?
+    var installedCliVersion: String?
     var isUpdating = false
     var updateError: String?
 
@@ -40,15 +43,34 @@ final class UpdateChecker {
         return normalizedLatest.compare(normalizedCurrent, options: .numeric) == .orderedDescending
     }
 
+    var cliUpdateAvailable: Bool {
+        guard let latest = latestCliVersion, let installed = installedCliVersion else { return false }
+        let normalizedLatest = AppVersion.normalize(latest)
+        let normalizedInstalled = AppVersion.normalize(installed)
+        guard !normalizedInstalled.isEmpty else { return false }
+        return normalizedLatest.compare(normalizedInstalled, options: .numeric) == .orderedDescending
+    }
+
+    var cliUpdateCommand: String {
+        let argv = CodeburnCLI.baseArgv()
+        let path = argv.first ?? ""
+        if path.contains("/homebrew/") { return "brew upgrade codeburn" }
+        return "npm update -g codeburn"
+    }
+
     var currentVersion: String {
         AppVersion.normalizedBundleShortVersion
     }
 
     func checkIfNeeded() async {
+        if installedCliVersion == nil {
+            installedCliVersion = Self.queryInstalledCliVersion()
+        }
         let lastCheck = UserDefaults.standard.double(forKey: lastCheckKey)
         let now = Date().timeIntervalSince1970
         if now - lastCheck < checkIntervalSeconds {
             latestVersion = UserDefaults.standard.string(forKey: cachedVersionKey)
+            latestCliVersion = UserDefaults.standard.string(forKey: cachedCliVersionKey)
             return
         }
         await check()
@@ -56,6 +78,9 @@ final class UpdateChecker {
 
     func check() async {
         updateError = nil
+        if installedCliVersion == nil {
+            installedCliVersion = Self.queryInstalledCliVersion()
+        }
         guard let url = URL(string: releasesAPI) else { return }
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
@@ -77,12 +102,40 @@ final class UpdateChecker {
                 .replacingOccurrences(of: "CodeBurnMenubar-", with: "")
                 .replacingOccurrences(of: ".zip", with: "")
 
+            let cliVersion = Self.resolveLatestCliVersion(in: releases)
+
             latestVersion = version
+            latestCliVersion = cliVersion
             UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCheckKey)
             UserDefaults.standard.set(version, forKey: cachedVersionKey)
+            if let cliVersion { UserDefaults.standard.set(cliVersion, forKey: cachedCliVersionKey) }
         } catch {
             updateError = "Update check failed: \(error.localizedDescription)"
             NSLog("CodeBurn: update check failed: \(error)")
+        }
+    }
+
+    nonisolated static func resolveLatestCliVersion(in releases: [GitHubRelease]) -> String? {
+        for release in releases where release.tag_name.hasPrefix("v") && !release.tag_name.hasPrefix("mac-v") {
+            return AppVersion.normalize(release.tag_name)
+        }
+        return nil
+    }
+
+    nonisolated static func queryInstalledCliVersion() -> String? {
+        let process = CodeburnCLI.makeProcess(subcommand: ["--version"])
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return output.isEmpty ? nil : output
+        } catch {
+            return nil
         }
     }
 
