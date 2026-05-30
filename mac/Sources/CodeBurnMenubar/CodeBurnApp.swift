@@ -764,7 +764,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
 
         let menubarPeriod = store.menubarPeriod
-        let menubarPayload = store.menubarPayload
+        let menubarPayload = badgePayload()
         let hasPayload = menubarPayload != nil
         let compact = isCompact
 
@@ -798,6 +798,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         button.attributedTitle = composed
         button.toolTip = "CodeBurn \(menubarPeriod.menubarMetricLabel)"
+    }
+
+    // Badge falls back to the launchd-written status file when the in-app loop
+    // is dead or behind; in-memory wins when it's fresher. The 10-min bound
+    // discards a file the 30s job has stopped updating.
+    private func badgePayload() -> MenubarPayload? {
+        let inMemory = store.menubarPayload
+        let inMemoryAge = store.menubarPayloadAgeSeconds.map(TimeInterval.init)
+        guard let fileRead = MenubarStatusCache.standard().readBadgePayload(maxAgeSeconds: 600) else {
+            return inMemory
+        }
+        if inMemory == nil { return fileRead.payload }
+        if let age = inMemoryAge, fileRead.ageSeconds < age { return fileRead.payload }
+        return inMemory
     }
 
     private func formatTokensMenubar(_ n: Double) -> String {
