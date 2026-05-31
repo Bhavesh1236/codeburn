@@ -49,7 +49,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var claudeQuotaRefreshTask: Task<Bool, Never>?
     private var codexQuotaRefreshTask: Task<Bool, Never>?
     private var refreshLoopHeartbeatAt: Date = .distantPast
-    private var lastLaunchAgentHeartbeatAt: Date = .distantPast
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Set accessory policy before the app's focus chain forms. On macOS Tahoe
@@ -84,7 +83,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         observeStore()
         startRefreshLoop()
         setupWakeObservers()
-        setupDistributedNotificationListener()
         removeLegacyRefreshAgent()
         registerLoginItemIfNeeded()
         observeSubscriptionDisconnect()
@@ -129,35 +127,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 self?.recoverRefreshPipelineAfterInterruption(resetLoading: true, reason: "screen wake")
             }
         }
-    }
-
-    private func setupDistributedNotificationListener() {
-        DistributedNotificationCenter.default().addObserver(
-            forName: NSNotification.Name("com.codeburn.refresh"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.handleLaunchAgentHeartbeat()
-            }
-        }
-    }
-
-    private func handleLaunchAgentHeartbeat() {
-        let now = Date()
-        guard now.timeIntervalSince(lastLaunchAgentHeartbeatAt) >= refreshRateLimitSeconds else { return }
-        lastLaunchAgentHeartbeatAt = now
-        let loopAge = now.timeIntervalSince(refreshLoopHeartbeatAt)
-        guard refreshTimer == nil || loopAge > refreshLoopWatchdogSeconds else {
-            _ = store.clearStaleLoadingIfNeeded()
-            _ = clearStaleForceRefreshIfNeeded(now: now)
-            _ = clearStaleStatusPayloadRefreshIfNeeded(now: now)
-            return
-        }
-        if refreshTimer != nil {
-            NSLog("CodeBurn: refresh loop stale for %ds after launch agent - restarting", Int(loopAge))
-        }
-        startRefreshLoop(forceQuotaOnStart: false)
     }
 
     private func prepareRefreshPipelineForSleep() {
