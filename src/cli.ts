@@ -12,4 +12,4 @@ if (major < 22 || (major === 22 && minor < 13)) {
 import('./main.js').catch((err) => {
   process.stderr.write(String(err?.message ?? err) + '\n')
   process.exit(1)
-})
+});
